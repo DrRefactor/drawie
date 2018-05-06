@@ -6,7 +6,7 @@ var parentDir = path.join(__dirname, '../');
 module.exports = {
   devtool: 'source-map',
   entry: [
-    path.join(parentDir, 'index.js')
+    path.join(parentDir, '/src/index.js')
   ],
   module: {
     rules: [
@@ -45,5 +45,6 @@ module.exports = {
   },
   node: {
     fs: 'empty'
-  }
+  },
+  mode: 'development'
 }
