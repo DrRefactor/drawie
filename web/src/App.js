@@ -1,4 +1,5 @@
 import React, { Component } from 'react'
+import { withRouter } from 'react-router-dom'
 
 import SocketIO from 'socket.io-client'
 
@@ -6,35 +7,61 @@ const host = 'localhost'
 
 /// insert wifi ip for dev-wifi mode
 /// dirty way to test app via local network
-// const host = '192.168.24.106'
+// const host = 'x.x.x.x'
 
-export default class App extends Component {
-  constructor() {
-    super()
+class App extends Component {
+  constructor(props) {
+    super(props)
     this.onDraw = this.onDraw.bind(this)
     this.onCanvasReady = this.onCanvasReady.bind(this)
     this.fullDump = this.fullDump.bind(this)
     this.fullReplace = this.fullReplace.bind(this)
     this.emitStroke = this.emitStroke.bind(this)
     this.onRoughDraftReady = this.onRoughDraftReady.bind(this)
-    this.socket = SocketIO(`http://${host}:4000`)
+    this.renderBody = this.renderBody.bind(this)
+    this.suspend = this.suspend.bind(this)
+    
+    console.log(this.props.location)
+
+    this.socket = SocketIO(`http://${host}:4000?room=dupa`)
     this.state = {
       recentNotifyTimestamp: null,
       strokes: [],
-      currentStroke: []
+      currentStroke: [],
+      loading: true
     }
+    this.registeredCallbacks = {}
+  }
+
+  callSuspended(blockingMethod) {
+    const callbacks = this.registeredCallbacks[blockingMethod]
+    if (callbacks) {
+      callbacks.forEach(x => x())
+    }
+    this.registeredCallbacks[blockingMethod] = null
+  }
+
+  suspend(blockingMethod, callback) {
+    this.registeredCallbacks[blockingMethod] = this.registeredCallbacks[blockingMethod] ?
+    this.registeredCallbacks[blockingMethod].concat(callback) :
+    [callback]
   }
 
   componentDidMount() {
     this.socket.on('draw', data => {
-      console.log('draw', data)
       this.draw(data)
     })
 
     this.socket.on('dumpBC', data => {
       let { dump } = data
-      dump = utils.string2ImageData(dump)
+      if (typeof dump === 'string') {
+        dump = utils.string2ImageData.bind(utils)(dump)
+      }
+      else {
+        dump = utils.obj2ImageData.bind(utils)(dump)
+      }
       this.fullReplace({ dump })
+      this.setState({ loading: false })
     })
 
     this.socket.on('strokeBC', data => {
@@ -49,31 +76,41 @@ export default class App extends Component {
   }
 
   render () {
+    const body = this.renderBody()
     return (
       <div className='app-container'>
-        <canvas 
-          // onMouseMove={this.onDraw}
-          // onMouseDown={this.onDraw}
-          // onMouseUp={this.onDraw}
-          // onMouseLeave={this.onDraw}
-          // onMouseOut={this.onDraw}
-          className='board'
-          ref={this.onCanvasReady}
-        />
-        <canvas
-          className='rough-draft'
-          onMouseMove={this.onDraw}
-          onMouseDown={this.onDraw}
-          onMouseUp={this.onDraw}
-          onMouseLeave={this.onDraw}
-          onMouseOut={this.onDraw}
-          onTouchStart={this.onDraw}
-          onTouchEnd={this.onDraw}
-          onTouchCancel={this.onDraw}
-          ref={this.onRoughDraftReady}
-        />
+        {body}
       </div>
     )
+  }
+
+  renderBody() {
+    const { loading } = this.state
+
+    if (loading) {
+      return <LoadingIndicator />
+    }
+
+    return [
+      <canvas
+        key='board'
+        className='board'
+        ref={this.onCanvasReady}
+      />,
+      <canvas
+        key='roughdraft'
+        className='rough-draft'
+        onMouseMove={this.onDraw}
+        onMouseDown={this.onDraw}
+        onMouseUp={this.onDraw}
+        onMouseLeave={this.onDraw}
+        onMouseOut={this.onDraw}
+        onTouchStart={this.onDraw}
+        onTouchEnd={this.onDraw}
+        onTouchCancel={this.onDraw}
+        ref={this.onRoughDraftReady}
+      />
+    ]
   }
 
   onRoughDraftReady(component) {
@@ -104,6 +141,12 @@ export default class App extends Component {
     ctx.strokeStyle = '#AAAAAA'
     ctx.lineWidth = 5
     ctx.lineCap = 'round'
+
+    /// arguments proto methods:
+    /// .calle and .caller
+    /// fail in es5/es6/es7 strict mode,
+    /// thus making it impossible to extract suspender and suspended methods' names
+    this.callSuspended('onCanvasReady')
   }
 
   onDraw(e) {
@@ -134,33 +177,7 @@ export default class App extends Component {
 
     const { x, y } = relativeCoords(e)
     this.draw({ x, y, type })
-    // this.notify({ type })
   }
-
-  // notify({ type }) {
-  //   if (type !== 'mousemove' && type !== 'mouseup') {
-  //     return
-  //   }
-  //   const { recentNotifyTimestamp } = this.state
-  //   const now = Date.now()
-  //   const timespan = recentNotifyTimestamp ? now - recentNotifyTimestamp : Number.MAX_SAFE_INTEGER
-    
-  //   if (type === 'mouseup') {
-  //     this.fullDumpEmit()
-  //     this.setState({ recentNotifyTimestamp: now })
-  //     return
-  //   }
-
-  //   if (timespan < 2000) {
-  //     return
-  //   }
-  //   this.fullDumpEmit()
-  //   this.setState({ recentNotifyTimestamp: now })
-  // }
-
-  // fullDumpEmit() {
-  //   this.socket.emit('dump', { dump: utils.imageData2String(this.fullDump()) })
-  // }
 
   fullDump() {
     const ref = this.canvasRef
@@ -170,6 +187,11 @@ export default class App extends Component {
 
   fullReplace({ dump }) {
     const ref = this.canvasRef
+    if (!ref) {
+      const callback = () => this.fullReplace({ dump })
+      this.suspend('onCanvasReady', callback)
+      return
+    }
     const ctx = ref.getContext('2d')
 
     ctx.putImageData(dump, 0, 0)
@@ -205,9 +227,12 @@ export default class App extends Component {
       ctx.closePath()
       this.emitStroke()
 
-      const { currentStroke } = this.state
+      const { currentStroke = [] } = this.state
       this.drawStroke(currentStroke)
-      ctx.clearRect(0, 0, this.roughDraftRef.width, this.roughDraftRef.height)
+      if (currentStroke.length) {
+        ctx.clearRect(0, 0, this.roughDraftRef.width, this.roughDraftRef.height)
+      }
+      
       this.setState({ drawing: false, currentStroke: [] })
     }
   }
@@ -227,19 +252,37 @@ export default class App extends Component {
     const [firstX, firstY] = points[0]
     let current = { x: firstX, y: firstY }
     
+    const ctx = this.canvasRef.getContext('2d')
+    ctx.beginPath()
+    ctx.moveTo(firstX, firstY)
+
     points
       .slice(1)
       .forEach(p => {
         const [x, y] = p
-        this.drawLine(current.x, current.y, x, y)
+        ctx.lineTo(x, y)
         current = { x, y }
       })
+
+    ctx.stroke()
+    ctx.closePath()
   }
 
   emitStroke() {
-    const { currentStroke } = this.state
+    const { currentStroke = [] } = this.state
+    if (!currentStroke.length) {
+      return
+    }
     this.socket.emit('stroke', { stroke: currentStroke, guid: utils.guid() })
   }
+}
+
+function LoadingIndicator({ width = 500, height = 500 } = {}) {
+  return (
+    <div className='loading-indicator' style={{ width, height }}>
+      <span className='label'>Loading...</span>
+    </div>
+  )
 }
 
 const utils = {
@@ -248,11 +291,12 @@ const utils = {
 
     return JSON.stringify({ data, width, height })
   },
-  string2ImageData: str => {
+  string2ImageData: function(str) {
     const parsed = JSON.parse(str)
-    console.log(parsed)
-    const { data, width, height } = parsed
-    console.log(data)
+    return this.obj2ImageData(parsed)
+  },
+  obj2ImageData: function(obj) {
+    const { data, width, height } = obj
     const byteArray = new Uint8ClampedArray(Object.values(data))
 
     return new ImageData(byteArray, width, height)
@@ -299,5 +343,16 @@ const utils = {
     }
 
     return { pageX, pageY }
+  },
+  getUrlByName: function(name, url) {
+    if (!url) url = window.location.href;
+    name = name.replace(/[\[\]]/g, "\\$&");
+    var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+        results = regex.exec(url);
+    if (!results) return null;
+    if (!results[2]) return '';
+    return decodeURIComponent(results[2].replace(/\+/g, " "));
   }
 }
+
+export default withRouter(App)

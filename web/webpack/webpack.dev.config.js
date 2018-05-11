@@ -41,7 +41,9 @@ module.exports = {
   },
   devServer: {
     contentBase: parentDir,
-    historyApiFallback: true
+    historyApiFallback: true,
+    // host: require('os').hostname().toLowerCase()
+    host: '0.0.0.0'
   },
   node: {
     fs: 'empty'
