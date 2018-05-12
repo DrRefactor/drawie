@@ -1,5 +1,6 @@
 import React, { Component } from 'react'
 import { withRouter } from 'react-router-dom'
+import { Redirect } from 'react-router'
 
 import SocketIO from 'socket.io-client'
 
@@ -7,7 +8,7 @@ const host = 'localhost'
 
 /// insert wifi ip for dev-wifi mode
 /// dirty way to test app via local network
-// const host = 'x.x.x.x'
+// const host = '172.18.18.189'
 
 class App extends Component {
   constructor(props) {
@@ -20,17 +21,28 @@ class App extends Component {
     this.onRoughDraftReady = this.onRoughDraftReady.bind(this)
     this.renderBody = this.renderBody.bind(this)
     this.suspend = this.suspend.bind(this)
+    this.queryRoom = this.queryRoom.bind(this)
     
-    console.log(this.props.location)
+    const room = this.queryRoom() || utils.guid()
+    const query = this.buildQuery(room)
 
-    this.socket = SocketIO(`http://${host}:4000?room=dupa`)
+    this.socket = SocketIO(`http://${host}:4000${query}`)
     this.state = {
       recentNotifyTimestamp: null,
-      strokes: [],
+      paths: [],
       currentStroke: [],
-      loading: true
+      loading: true,
+      room
     }
     this.registeredCallbacks = {}
+  }
+
+  queryRoom() {
+    return utils.getUrlByName('room', this.props.location.search)
+  }
+
+  buildQuery(room) {
+    return `?room=${room}`
   }
 
   callSuspended(blockingMethod) {
@@ -53,20 +65,23 @@ class App extends Component {
     })
 
     this.socket.on('dumpBC', data => {
-      let { dump } = data
+      let { dump, paths } = data
       if (typeof dump === 'string') {
         dump = utils.string2ImageData.bind(utils)(dump)
       }
       else {
         dump = utils.obj2ImageData.bind(utils)(dump)
       }
-      this.fullReplace({ dump })
-      this.setState({ loading: false })
+      this.fullReplace({ dump, paths })
+      this.setState({ loading: false, paths })
     })
 
     this.socket.on('strokeBC', data => {
       const { stroke } = data
       this.drawStroke(stroke)
+      let paths = this.state.paths.slice()
+      paths.push(stroke)
+      this.setState({ paths })
     })
   }
 
@@ -76,6 +91,12 @@ class App extends Component {
   }
 
   render () {
+    const { room } = this.state
+    if (this.queryRoom() !== room) {
+      return <Redirect to={{
+        search: this.buildQuery(room)
+      }} />
+    }
     const body = this.renderBody()
     return (
       <div className='app-container'>
@@ -185,16 +206,17 @@ class App extends Component {
     return ctx.getImageData(0, 0, ref.width, ref.height)
   }
 
-  fullReplace({ dump }) {
+  fullReplace({ dump, paths = [] }) {
     const ref = this.canvasRef
     if (!ref) {
-      const callback = () => this.fullReplace({ dump })
+      const callback = () => this.fullReplace({ dump, paths })
       this.suspend('onCanvasReady', callback)
       return
     }
     const ctx = ref.getContext('2d')
 
     ctx.putImageData(dump, 0, 0)
+    paths.forEach(this.drawStroke.bind(this))
   }
 
   draw({ x, y, type = '' } = {}) {
@@ -228,7 +250,6 @@ class App extends Component {
       this.emitStroke()
 
       const { currentStroke = [] } = this.state
-      this.drawStroke(currentStroke)
       if (currentStroke.length) {
         ctx.clearRect(0, 0, this.roughDraftRef.width, this.roughDraftRef.height)
       }
@@ -347,8 +368,9 @@ const utils = {
   getUrlByName: function(name, url) {
     if (!url) url = window.location.href;
     name = name.replace(/[\[\]]/g, "\\$&");
-    var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
-        results = regex.exec(url);
+    const regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)")
+
+    const results = regex.exec(url);
     if (!results) return null;
     if (!results[2]) return '';
     return decodeURIComponent(results[2].replace(/\+/g, " "));
