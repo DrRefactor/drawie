@@ -1,0 +1,31 @@
+.icon-button {
+  width: 24px;
+  height: 24px;
+  padding: 5px;
+  border-radius: 5px;
+  background-color: rgb(204, 204, 204);
+  
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: none;
+
+  &.disabled {
+    opacity: 0.5;
+    cursor: auto;
+  }
+
+  cursor: pointer;
+  &:hover:not(.disabled) {
+    background-color: rgb(210, 210, 215);
+  }
+  &:active:not(.disabled) {
+    background: rgb(190,190,215);
+  }
+  outline: none;
+
+  & > img {
+    width: 14px;
+    height: 14px;
+  }
+}

@@ -6,13 +6,6 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  canvas.board {
-    background-color: white;
-    .shadow-mild;
-  }
-  canvas.rough-draft {
-    position: absolute;
-  }
   .loading-indicator {
     .shadow-mild;
     background-color: #333;
@@ -30,6 +23,26 @@
       animation-name: fontpulse;
       animation-duration: 2s;
       animation-iteration-count: infinite;
+    }
+  }
+
+  .workspace {
+    .shadow-mild;
+    display: flex;
+    flex-direction: column;
+    .body {
+      position: relative;
+      canvas.board {
+        background-color: white;
+      }
+      canvas.rough-draft {
+        position: absolute;
+        top: 0;
+        left: 0;
+      }
+    }
+    .toolbar {
+      padding: 5px;
     }
   }
 }

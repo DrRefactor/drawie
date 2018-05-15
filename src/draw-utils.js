@@ -1,5 +1,6 @@
 function drawStroke(points = [], ctx) {
   if (!points.length || !ctx) {
+    console.log('invalid stroke to draw on backend', points, ctx)
     return
   }
 

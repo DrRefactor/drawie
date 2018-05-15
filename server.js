@@ -18,14 +18,6 @@ finally {
   console.log('listening on 4000')
 }
 
-// let base = new Canvas(500, 500)
-// let baseCtx = base.getContext('2d')
-
-// baseCtx.fillStyle = 'solid'
-// baseCtx.strokeStyle = '#AAAAAA'
-// baseCtx.lineWidth = 5
-// baseCtx.lineCap = 'round'
-
 class Room {
   constructor({
     width = 500,
@@ -81,6 +73,12 @@ class Room {
     }
   }
 
+  pop() {
+    if (this.paths.length) {
+      return this.paths.pop()
+    }
+  }
+
   fitBounds() {
     let paths = this.paths.slice()
     const toDeleteCount = this.paths.length - this.historyBounds.lower
@@ -88,7 +86,7 @@ class Room {
       return
     }
     const toApply = paths.splice(0, toDeleteCount)
-    toApply.forEach(this.apply)
+    toApply.forEach(path => this.apply(path))
     this.paths = paths
   }
 
@@ -97,22 +95,7 @@ class Room {
   }
 
   get dump() {
-    const destElement = new NodeCanvas(this.width, this.height)
-    const destCtx = destElement.getContext('2d')
-    this.setup(destCtx, this.options)
-    
-    const baseImageData = fullDump(this.ctx, this.element, true)
-    destCtx.putImageData(baseImageData, this.width, this.height)
-
-    let paths = this.paths.slice()
-    let toApply = []
-    const toDeleteCount = paths.length - this.historyBounds.lower
-    if (toDeleteCount > 0) {
-      toApply = paths.splice(0, toDeleteCount)
-    }
-    
-    toApply.forEach(path => drawStroke(path, destCtx))
-    return { dump: fullDump(destCtx, destElement), paths }
+    return { dump: fullDump(this.ctx, this.element), paths: this.paths }
   }
 }
 
@@ -134,26 +117,28 @@ io
 
     let room = rooms[roomId]
     if (room == null) {
+      console.log('creating room: ', roomId)
       room = new Room({ id: roomId })
       rooms[roomId] = room
     }
 
-    socket.emit('dumpBC', room.dump)
-
-    socket.on('drawClick', data => {
-      const { broadcast } = socket
-      const { x, y, type } = data
-      io.to(roomId).emit('draw', { x, y, type })
-    })
+    io.to(socket.id).emit('dumpBC', room.dump)
+    console.log('dump created.')
 
     socket.on('dump', data => {
       io.to(roomId).emit('dumpBC', data)
     })
 
     socket.on('stroke', data => {
-      console.log(data)
       const { stroke } = data
       room.save(stroke)
       io.to(roomId).emit('strokeBC', data)
+    })
+
+    socket.on('undo', () => {
+      const popped = room.pop()
+      if (popped && popped.length) {
+        io.to(roomId).emit('dumpBC', room.dump)
+      }
     })
   })

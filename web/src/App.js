@@ -3,12 +3,14 @@ import { withRouter } from 'react-router-dom'
 import { Redirect } from 'react-router'
 
 import SocketIO from 'socket.io-client'
+import { IconButton } from './components/icon-button';
+import { Room } from './controllers/room'
 
-const host = 'localhost'
+// const host = 'localhost'
 
 /// insert wifi ip for dev-wifi mode
 /// dirty way to test app via local network
-// const host = '172.18.18.189'
+const host = '172.18.18.189'
 
 class App extends Component {
   constructor(props) {
@@ -16,17 +18,22 @@ class App extends Component {
     this.onDraw = this.onDraw.bind(this)
     this.onCanvasReady = this.onCanvasReady.bind(this)
     this.fullDump = this.fullDump.bind(this)
-    this.fullReplace = this.fullReplace.bind(this)
+    this.replace = this.replace.bind(this)
     this.emitStroke = this.emitStroke.bind(this)
     this.onRoughDraftReady = this.onRoughDraftReady.bind(this)
     this.renderBody = this.renderBody.bind(this)
     this.suspend = this.suspend.bind(this)
     this.queryRoom = this.queryRoom.bind(this)
+    this.renderToolbar = this.renderToolbar.bind(this)
+    this.handleUndoClick = this.handleUndoClick.bind(this)
+    this.undo = this.undo.bind(this)
     
     const room = this.queryRoom() || utils.guid()
     const query = this.buildQuery(room)
 
     this.socket = SocketIO(`http://${host}:4000${query}`)
+    this.roomController = new Room({ id: room })
+
     this.state = {
       recentNotifyTimestamp: null,
       paths: [],
@@ -72,7 +79,7 @@ class App extends Component {
       else {
         dump = utils.obj2ImageData.bind(utils)(dump)
       }
-      this.fullReplace({ dump, paths })
+      this.replace({ dump, paths })
       this.setState({ loading: false, paths })
     })
 
@@ -83,6 +90,10 @@ class App extends Component {
       paths.push(stroke)
       this.setState({ paths })
     })
+
+    this.socket.on('undoBC', data => {
+      this.undo()
+    })
   }
 
   componentWillUnmount() {
@@ -92,15 +103,53 @@ class App extends Component {
 
   render () {
     const { room } = this.state
+    // Redirect to new room from '/'
     if (this.queryRoom() !== room) {
       return <Redirect to={{
         search: this.buildQuery(room)
       }} />
     }
+
     const body = this.renderBody()
+    const toolbar = this.renderToolbar()
+    
     return (
       <div className='app-container'>
-        {body}
+        <div className='workspace'>
+          {toolbar}
+          <div className='body'>
+            {body}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  undo() {
+    if (!this.canvasRef) {
+      const callback = () => this.undo()
+      this.suspend('onCanvasReady', callback)
+      return
+    }
+
+    const popped = this.roomController.pop()
+    if (popped && popped.length) {
+      let ctx = this.canvasRef.getContext('2d')
+      ctx.drawImage(this.roomController.element, 0, 0)
+      this.setState({ paths: this.roomController.paths })
+    }
+  }
+
+  renderToolbar() {
+    const { loading, paths } = this.state
+
+    if (loading) {
+      return null
+    }
+
+    return (
+      <div className='toolbar'>
+        <IconButton disabled={paths.length === 0} icon='undo.svg' onClick={this.handleUndoClick} />
       </div>
     )
   }
@@ -132,6 +181,10 @@ class App extends Component {
         ref={this.onRoughDraftReady}
       />
     ]
+  }
+
+  handleUndoClick() {
+    this.socket.emit('undo')
   }
 
   onRoughDraftReady(component) {
@@ -206,16 +259,18 @@ class App extends Component {
     return ctx.getImageData(0, 0, ref.width, ref.height)
   }
 
-  fullReplace({ dump, paths = [] }) {
+  replace({ dump, paths = [], element }) {
     const ref = this.canvasRef
     if (!ref) {
-      const callback = () => this.fullReplace({ dump, paths })
+      const callback = () => this.replace({ dump, paths })
       this.suspend('onCanvasReady', callback)
       return
     }
     const ctx = ref.getContext('2d')
 
     ctx.putImageData(dump, 0, 0)
+    this.roomController.replace(dump, paths)
+
     paths.forEach(this.drawStroke.bind(this))
   }
 
@@ -269,6 +324,7 @@ class App extends Component {
     if (!points.length) {
       return
     }
+    this.roomController.save(points)
 
     const [firstX, firstY] = points[0]
     let current = { x: firstX, y: firstY }
