@@ -7,11 +7,11 @@ import { IconButton } from './components/icon-button';
 import { Room } from './controllers/room'
 import { RoomEager } from './controllers/room-eager';
 
-// const host = 'localhost'
+const host = 'localhost'
 
 /// insert wifi ip for dev-wifi mode
 /// dirty way to test app via local network
-const host = '172.18.18.189'
+// const host = '192.168.0.21'
 
 class App extends Component {
   constructor(props) {
@@ -27,7 +27,8 @@ class App extends Component {
     this.queryRoom = this.queryRoom.bind(this)
     this.renderToolbar = this.renderToolbar.bind(this)
     this.handleUndoClick = this.handleUndoClick.bind(this)
-    
+    this.handleRedoClick = this.handleRedoClick.bind(this)
+
     const room = this.queryRoom() || utils.guid()
     const query = this.buildQuery(room)
 
@@ -124,6 +125,7 @@ class App extends Component {
     return (
       <div className='toolbar'>
         <IconButton disabled={false} icon='undo.svg' onClick={this.handleUndoClick} />
+        <IconButton disabled={false} icon='redo.svg' onClick={this.handleRedoClick} />
       </div>
     )
   }
@@ -155,6 +157,10 @@ class App extends Component {
         ref={this.onRoughDraftReady}
       />
     ]
+  }
+
+  handleRedoClick() {
+    this.socket.emit('redo')
   }
 
   handleUndoClick() {

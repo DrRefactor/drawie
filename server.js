@@ -25,7 +25,8 @@ class Room {
     options = {},
     snapshots = [''],
     id,
-    historyBound = 50
+    historyBound = 50,
+    redoStack = []
   } = {}) {
     const element = new NodeCanvas(width, height)
     const ctx = element.getContext('2d')
@@ -55,6 +56,7 @@ class Room {
     this.width = width
     this.height = height
     this.historyBound = historyBound
+    this.redoStack = redoStack
   }
 
   setup(ctx, options) {
@@ -64,6 +66,8 @@ class Room {
   }
 
   push(path) {
+    // reset redo stack on push
+    this.redoStack = []
     this.apply(path)
 
     if (this.snapshots.length > this.historyBound) {
@@ -78,13 +82,25 @@ class Room {
         return
       }
       console.log(this.recentSnapshot.length)
+      
       res = this.snapshots.pop()
+      this.redoStack.push(res)
+      
       const recent = this.snapshots[this.snapshots.length - 1]
       if (recent != null) {
         this.replace(recent)
       }
     }
     return res
+  }
+
+  redo() {
+    if (this.redoStack.length) {
+      const peak = this.redoStack.pop()
+      this.replace(peak)
+      this.snapshots.push(peak)
+      return peak
+    }
   }
 
   fitBounds() {
@@ -166,6 +182,15 @@ io
 
     socket.on('undo', () => {
       const popped = room.pop()
-      io.to(roomId).emit('dumpBC', room.dump)
+      if (popped) {
+        io.to(roomId).emit('dumpBC', room.dump)
+      }
+    })
+
+    socket.on('redo', () => {
+      const snapshot = room.redo()
+      if (snapshot) {
+        io.to(roomId).emit('dumpBC', { snapshot })
+      }
     })
   })
