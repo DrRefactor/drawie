@@ -5,6 +5,7 @@ import { Redirect } from 'react-router'
 import SocketIO from 'socket.io-client'
 import { IconButton } from './components/icon-button';
 import { Room } from './controllers/room'
+import { RoomEager } from './controllers/room-eager';
 
 // const host = 'localhost'
 
@@ -26,20 +27,19 @@ class App extends Component {
     this.queryRoom = this.queryRoom.bind(this)
     this.renderToolbar = this.renderToolbar.bind(this)
     this.handleUndoClick = this.handleUndoClick.bind(this)
-    this.undo = this.undo.bind(this)
     
     const room = this.queryRoom() || utils.guid()
     const query = this.buildQuery(room)
 
     this.socket = SocketIO(`http://${host}:4000${query}`)
-    this.roomController = new Room({ id: room })
 
     this.state = {
       recentNotifyTimestamp: null,
       paths: [],
       currentStroke: [],
       loading: true,
-      room
+      room,
+      snapshots: []
     }
     this.registeredCallbacks = {}
   }
@@ -72,27 +72,14 @@ class App extends Component {
     })
 
     this.socket.on('dumpBC', data => {
-      let { dump, paths } = data
-      if (typeof dump === 'string') {
-        dump = utils.string2ImageData.bind(utils)(dump)
-      }
-      else {
-        dump = utils.obj2ImageData.bind(utils)(dump)
-      }
-      this.replace({ dump, paths })
-      this.setState({ loading: false, paths })
+      let { snapshot } = data
+      this.replace({ snapshot })
+      this.setState({ loading: false, snapshot })
     })
 
     this.socket.on('strokeBC', data => {
       const { stroke } = data
       this.drawStroke(stroke)
-      let paths = this.state.paths.slice()
-      paths.push(stroke)
-      this.setState({ paths })
-    })
-
-    this.socket.on('undoBC', data => {
-      this.undo()
     })
   }
 
@@ -125,31 +112,18 @@ class App extends Component {
     )
   }
 
-  undo() {
-    if (!this.canvasRef) {
-      const callback = () => this.undo()
-      this.suspend('onCanvasReady', callback)
-      return
-    }
-
-    const popped = this.roomController.pop()
-    if (popped && popped.length) {
-      let ctx = this.canvasRef.getContext('2d')
-      ctx.drawImage(this.roomController.element, 0, 0)
-      this.setState({ paths: this.roomController.paths })
-    }
-  }
-
   renderToolbar() {
-    const { loading, paths } = this.state
+    const { loading, snapshots } = this.state
 
     if (loading) {
       return null
     }
-
+    // TODO
+    //// Propagate flag from server
+    //// whether canvas is undoable or not
     return (
       <div className='toolbar'>
-        <IconButton disabled={paths.length === 0} icon='undo.svg' onClick={this.handleUndoClick} />
+        <IconButton disabled={false} icon='undo.svg' onClick={this.handleUndoClick} />
       </div>
     )
   }
@@ -259,19 +233,35 @@ class App extends Component {
     return ctx.getImageData(0, 0, ref.width, ref.height)
   }
 
-  replace({ dump, paths = [], element }) {
+  replace({ snapshot }) {
     const ref = this.canvasRef
     if (!ref) {
-      const callback = () => this.replace({ dump, paths })
+      const callback = () => this.replace({ snapshot })
       this.suspend('onCanvasReady', callback)
       return
     }
     const ctx = ref.getContext('2d')
+    this.drawImage(snapshot)
+  }
 
-    ctx.putImageData(dump, 0, 0)
-    this.roomController.replace(dump, paths)
+  drawImage(encodedImage = '') {
+    const ref = this.canvasRef
+    if (!ref) return;
 
-    paths.forEach(this.drawStroke.bind(this))
+    const ctx = ref.getContext('2d')
+    if (!encodedImage) {
+      ctx.clearRect(0, 0, ref.width, ref.height)
+      return
+    }
+
+    let image = new Image()
+    image.onload = () => {
+      ctx.clearRect(0, 0, ref.width, ref.height)
+      ctx.drawImage(image, 0, 0)
+      this.setState({ pendingCounter: this.state.pendingCounter - 1 })
+    }
+    this.setState({ pendingCounter: this.state.pendingCounter + 1 })
+    image.src = encodedImage
   }
 
   draw({ x, y, type = '' } = {}) {
@@ -324,7 +314,6 @@ class App extends Component {
     if (!points.length) {
       return
     }
-    this.roomController.save(points)
 
     const [firstX, firstY] = points[0]
     let current = { x: firstX, y: firstY }

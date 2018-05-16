@@ -7,15 +7,12 @@ class RoomEager {
       higher: 50
     }
   } = {}) {
-    this.setup(ctx, opts)
-
     this.snapshots = snapshots
     this.id = id
     this.historyBounds = historyBounds
   }
 
-  replace(imageData, snapshots = []) {
-    this.ctx.putImageData(imageData, 0, 0)
+  replace(snapshots = []) {
     this.snapshots = snapshots
   }
 
@@ -41,6 +38,10 @@ class RoomEager {
     const toApply = snapshots.splice(0, toDeleteCount)
     toApply.forEach(path => this.apply(path))
     this.snapshots = snapshots
+  }
+
+  get snapshot() {
+    return this.snapshots[this.snapshots.length - 1]
   }
 
   get dump() {

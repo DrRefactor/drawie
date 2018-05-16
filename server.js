@@ -23,12 +23,9 @@ class Room {
     width = 500,
     height = 500,
     options = {},
-    paths = [],
+    snapshots = [''],
     id,
-    historyBounds = {
-      lower: 20,
-      higher: 50
-    }
+    historyBound = 50
   } = {}) {
     const element = new NodeCanvas(width, height)
     const ctx = element.getContext('2d')
@@ -53,11 +50,11 @@ class Room {
     this.options = opts
     this.element = element
     this.ctx = ctx
-    this.paths = paths
+    this.snapshots = snapshots
     this.id = id
     this.width = width
     this.height = height
-    this.historyBounds = historyBounds
+    this.historyBound = historyBound
   }
 
   setup(ctx, options) {
@@ -66,36 +63,73 @@ class Room {
     })
   }
 
-  save(path) {
-    this.paths.push(path)
-    if (this.paths.length > this.historyBounds.higher) {
+  push(path) {
+    this.apply(path)
+
+    if (this.snapshots.length > this.historyBound) {
       this.fitBounds()
     }
   }
 
   pop() {
-    if (this.paths.length) {
-      return this.paths.pop()
+    let res
+    if (this.snapshots.length) {
+      if (this.recentSnapshot === '') {
+        return
+      }
+      console.log(this.recentSnapshot.length)
+      res = this.snapshots.pop()
+      const recent = this.snapshots[this.snapshots.length - 1]
+      if (recent != null) {
+        this.replace(recent)
+      }
     }
+    return res
   }
 
   fitBounds() {
-    let paths = this.paths.slice()
-    const toDeleteCount = this.paths.length - this.historyBounds.lower
+    let snapshots = this.snapshots.slice()
+    const toDeleteCount = this.snapshots.length - this.historyBound
     if (toDeleteCount <= 0) {
       return
     }
-    const toApply = paths.splice(0, toDeleteCount)
-    toApply.forEach(path => this.apply(path))
-    this.paths = paths
+    snapshots.splice(0, toDeleteCount)
+    this.snapshots = snapshots
   }
 
   apply(path) {
     drawStroke(path, this.ctx)
+    this.snapshots.push(this.snapshot)
+  }
+
+  replace(snapshot = '') {
+    const ctx = this.ctx
+    if (!ctx) {
+      return
+    }
+    this.ctx.clearRect(0, 0, this.width, this.height)
+    if (!snapshot) {
+      return
+    }
+    
+    let image = new Image()
+    image.onload = () => {
+      ctx.clearRect(0, 0, this.width, this.height)
+      ctx.drawImage(image, 0, 0)
+    }
+    image.src = snapshot
+  }
+
+  get recentSnapshot() {
+    return this.snapshots[this.snapshots.length - 1]
+  }
+
+  get snapshot() {
+    return this.element.toDataURL()
   }
 
   get dump() {
-    return { dump: fullDump(this.ctx, this.element), paths: this.paths }
+    return { snapshot: this.snapshot }
   }
 }
 
@@ -123,22 +157,15 @@ io
     }
 
     io.to(socket.id).emit('dumpBC', room.dump)
-    console.log('dump created.')
-
-    socket.on('dump', data => {
-      io.to(roomId).emit('dumpBC', data)
-    })
 
     socket.on('stroke', data => {
       const { stroke } = data
-      room.save(stroke)
+      room.push(stroke)
       io.to(roomId).emit('strokeBC', data)
     })
 
     socket.on('undo', () => {
       const popped = room.pop()
-      if (popped && popped.length) {
-        io.to(roomId).emit('dumpBC', room.dump)
-      }
+      io.to(roomId).emit('dumpBC', room.dump)
     })
   })
