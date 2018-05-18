@@ -53,5 +53,8 @@ module.exports = {
     new webpack.DefinePlugin({
       'process.env.NODE_ENV': JSON.stringify('production')
     })
-  ]
+  ],
+  resolveLoader: {
+    root: path.join(__dirname, 'node_modules')
+  }
 }
