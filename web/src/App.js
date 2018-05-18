@@ -7,11 +7,11 @@ import { IconButton } from './components/icon-button';
 import { Room } from './controllers/room'
 import { RoomEager } from './controllers/room-eager';
 
-const host = 'localhost'
+// const host = 'localhost'
 
 /// insert wifi ip for dev-wifi mode
 /// dirty way to test app via local network
-// const host = '192.168.0.21'
+const host = 'serene-hollows-26142.herokuapp.com'
 
 class App extends Component {
   constructor(props) {
@@ -32,7 +32,7 @@ class App extends Component {
     const room = this.queryRoom() || utils.guid()
     const query = this.buildQuery(room)
 
-    this.socket = SocketIO(`http://${host}:4000${query}`)
+    this.socket = SocketIO(`https://${host}:4000${query}`)
 
     this.state = {
       recentNotifyTimestamp: null,
@@ -126,6 +126,7 @@ class App extends Component {
       <div className='toolbar'>
         <IconButton disabled={false} icon='undo.svg' onClick={this.handleUndoClick} />
         <IconButton disabled={false} icon='redo.svg' onClick={this.handleRedoClick} />
+        <IconButton icon='paint.svg' onClick={() => {}} />
       </div>
     )
   }

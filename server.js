@@ -6,16 +6,18 @@ let NodeCanvas = require('canvas')
 const { drawStroke, fullDump } = require('./src/draw-utils')
 const utils = require('./src/utils')
 
+const PORT = process.env.PORT || 5000;
+
 let io
 try {
-  io = SocketIO.listen(4000)
+  io = SocketIO.listen(PORT)
 }
 catch(e) {
   console.log(e)
   process.exit(1)
 }
 finally {
-  console.log('listening on 4000')
+  console.log(`Running on ${PORT}`)
 }
 
 class Room {
