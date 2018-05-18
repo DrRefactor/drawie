@@ -17,7 +17,9 @@ module.exports = {
         use: {
           loader: 'babel-loader',
           options: {
-            presets: ['babel-preset-env']
+            presets: [
+              require.resolve('babel-preset-env')
+            ]
           }
         }
       },
@@ -53,8 +55,5 @@ module.exports = {
     new webpack.DefinePlugin({
       'process.env.NODE_ENV': JSON.stringify('production')
     })
-  ],
-  resolveLoader: {
-    root: path.join(__dirname, 'node_modules')
-  }
+  ]
 }
