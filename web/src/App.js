@@ -7,11 +7,11 @@ import { IconButton } from './components/icon-button';
 import { Room } from './controllers/room'
 import { RoomEager } from './controllers/room-eager';
 
-// const host = 'localhost'
-
-/// insert wifi ip for dev-wifi mode
-/// dirty way to test app via local network
-const host = 'serene-hollows-26142.herokuapp.com'
+// move this to {env}.env
+let host = 'localhost:5000'
+if (process.env && process.env.NODE_ENV === 'production') {
+  host = 'drawie.herokuapp.com'
+}
 
 class App extends Component {
   constructor(props) {
@@ -32,7 +32,7 @@ class App extends Component {
     const room = this.queryRoom() || utils.guid()
     const query = this.buildQuery(room)
 
-    this.socket = SocketIO(`https://${host}:4000${query}`)
+    this.socket = SocketIO(`http://${host}${query}`)
 
     this.state = {
       recentNotifyTimestamp: null,

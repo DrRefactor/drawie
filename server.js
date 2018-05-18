@@ -1,4 +1,8 @@
 const SocketIO = require('socket.io')
+const express = require('express')
+const app = express()
+const server = require('http').Server(app)
+const path = require('path')
 
 let NodeCanvas = require('canvas')
   , Image = NodeCanvas.Image
@@ -8,9 +12,11 @@ const utils = require('./src/utils')
 
 const PORT = process.env.PORT || 5000;
 
+server.listen(PORT)
+
 let io
 try {
-  io = SocketIO.listen(PORT)
+  io = SocketIO(server)
 }
 catch(e) {
   console.log(e)
@@ -19,6 +25,8 @@ catch(e) {
 finally {
   console.log(`Running on ${PORT}`)
 }
+
+app.use(express.static(path.resolve(__dirname, 'web/dist')));
 
 class Room {
   constructor({
