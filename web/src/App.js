@@ -8,9 +8,9 @@ import { Room } from './controllers/room'
 import { RoomEager } from './controllers/room-eager';
 
 // move this to {env}.env
-let host = 'localhost:5000'
+let host = 'http://localhost:5000'
 if (process.env && process.env.NODE_ENV === 'production') {
-  host = 'drawie.herokuapp.com'
+  host = 'https://drawie.herokuapp.com'
 }
 
 class App extends Component {
@@ -32,7 +32,7 @@ class App extends Component {
     const room = this.queryRoom() || utils.guid()
     const query = this.buildQuery(room)
 
-    this.socket = SocketIO(`http://${host}${query}`)
+    this.socket = SocketIO(`${host}${query}`)
 
     this.state = {
       recentNotifyTimestamp: null,
