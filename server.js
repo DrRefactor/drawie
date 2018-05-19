@@ -75,10 +75,10 @@ class Room {
     })
   }
 
-  push(path) {
+  push(path, options) {
     // reset redo stack on push
     this.redoStack = []
-    this.apply(path)
+    this.apply(path, options)
 
     if (this.snapshots.length > this.historyBound) {
       this.fitBounds()
@@ -123,9 +123,16 @@ class Room {
     this.snapshots = snapshots
   }
 
-  apply(path) {
+  apply(path, options = {}) {
+    console.log(options)
+    // apply options like color, stroke width etc
+    this.setup(this.ctx, options)
+
     drawStroke(path, this.ctx)
     this.snapshots.push(this.snapshot)
+
+    // restore options
+    this.setup(this.ctx, this.options)
   }
 
   replace(snapshot = '') {
@@ -185,8 +192,8 @@ io
     io.to(socket.id).emit('dumpBC', room.dump)
 
     socket.on('stroke', data => {
-      const { stroke } = data
-      room.push(stroke)
+      const { stroke, options } = data
+      room.push(stroke, options)
       io.to(roomId).emit('strokeBC', data)
     })
 

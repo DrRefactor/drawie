@@ -4,8 +4,9 @@ import { Redirect } from 'react-router'
 
 import SocketIO from 'socket.io-client'
 import { IconButton } from './components/icon-button';
-import { Room } from './controllers/room'
-import { RoomEager } from './controllers/room-eager';
+
+import { SliderPicker } from 'react-color'
+import { PickerTooltip } from './components/picker-tooltip';
 
 // move this to {env}.env
 let host = 'http://localhost:5000'
@@ -28,6 +29,16 @@ class App extends Component {
     this.renderToolbar = this.renderToolbar.bind(this)
     this.handleUndoClick = this.handleUndoClick.bind(this)
     this.handleRedoClick = this.handleRedoClick.bind(this)
+    this.handlePaletteClick = this.handlePaletteClick.bind(this)
+    this.handleActivityDismiss = this.handleActivityDismiss.bind(this)
+    this.onBrushColorSelect = this.onBrushColorSelect.bind(this)
+
+    const options = {
+      fillStyle: 'solid',
+      strokeStyle: utils.randomHex(),
+      lineWidth: 5,
+      lineCap: 'round'
+    }
 
     const room = this.queryRoom() || utils.guid()
     const query = this.buildQuery(room)
@@ -40,7 +51,9 @@ class App extends Component {
       currentStroke: [],
       loading: true,
       room,
-      snapshots: []
+      snapshots: [],
+      activity: '',
+      options
     }
     this.registeredCallbacks = {}
   }
@@ -79,8 +92,8 @@ class App extends Component {
     })
 
     this.socket.on('strokeBC', data => {
-      const { stroke } = data
-      this.drawStroke(stroke)
+      const { stroke, options } = data
+      this.drawStroke(stroke, options)
     })
   }
 
@@ -114,7 +127,7 @@ class App extends Component {
   }
 
   renderToolbar() {
-    const { loading, snapshots } = this.state
+    const { loading, snapshots, activity, options } = this.state
 
     if (loading) {
       return null
@@ -126,7 +139,12 @@ class App extends Component {
       <div className='toolbar'>
         <IconButton disabled={false} icon='undo.svg' onClick={this.handleUndoClick} />
         <IconButton disabled={false} icon='redo.svg' onClick={this.handleRedoClick} />
-        <IconButton icon='paint.svg' onClick={() => {}} />
+        <IconButton icon='palette.svg' onClick={this.handlePaletteClick}>
+          { activity === 'selectBrushColor' ? 
+            <PickerTooltip onAccept={this.onBrushColorSelect} onDismiss={this.handleActivityDismiss} initialColor={options.strokeStyle} /> :
+            null 
+          }
+        </IconButton>
       </div>
     )
   }
@@ -160,12 +178,26 @@ class App extends Component {
     ]
   }
 
+  handleActivityDismiss() {
+    this.setState({ activity: '' })
+  }
+
   handleRedoClick() {
     this.socket.emit('redo')
   }
 
   handleUndoClick() {
     this.socket.emit('undo')
+  }
+
+  handlePaletteClick() {
+    const activity = this.state.activity === 'selectBrushColor' ? '' : 'selectBrushColor'
+    this.setState({ activity })
+  }
+
+  onBrushColorSelect(brushColor) {
+    const options = Object.assign({}, this.state.options, { strokeStyle: brushColor })
+    this.setState({ options, activity: '' })
   }
 
   onRoughDraftReady(component) {
@@ -175,15 +207,18 @@ class App extends Component {
     component.width = 500
     
     let ctx = component.getContext('2d')
-    ctx.fillStyle = 'solid'
-    ctx.strokeStyle = '#AA5555'
-    ctx.lineWidth = 5
-    ctx.lineCap = 'round'
+    this.setup(ctx, this.state.options)
 
     this.touchMoveListener = utils.addEventListener(component, 'touchmove',
       this.onDraw.bind(this),
       { passive: false }
     )
+  }
+
+  setup(ctx, options = {}) {
+    Object.keys(options).forEach(key => {
+      ctx[key] = options[key]
+    })
   }
 
   onCanvasReady(component) {
@@ -192,10 +227,7 @@ class App extends Component {
     component.width = 500
 
     let ctx = component.getContext('2d')
-    ctx.fillStyle = 'solid'
-    ctx.strokeStyle = '#AAAAAA'
-    ctx.lineWidth = 5
-    ctx.lineCap = 'round'
+    this.setup(ctx, this.state.options)
 
     /// arguments proto methods:
     /// .calle and .caller
@@ -280,6 +312,7 @@ class App extends Component {
 
     type = type.toLowerCase()
     if (type === 'dragstart' || type === 'mousedown' || type === 'touchstart') {
+      this.setup(ctx, this.state.options)
       ctx.beginPath()
       ctx.moveTo(x, y)
       this.setState({ drawing: true, currentStroke: [] })
@@ -317,15 +350,17 @@ class App extends Component {
     ctx.stroke();
   }
 
-  drawStroke(points = []) {
+  drawStroke(points = [], options) {
     if (!points.length) {
       return
     }
 
+    options = options || this.state.options
     const [firstX, firstY] = points[0]
     let current = { x: firstX, y: firstY }
     
     const ctx = this.canvasRef.getContext('2d')
+    this.setup(ctx, options)
     ctx.beginPath()
     ctx.moveTo(firstX, firstY)
 
@@ -342,11 +377,11 @@ class App extends Component {
   }
 
   emitStroke() {
-    const { currentStroke = [] } = this.state
+    const { currentStroke = [], options } = this.state
     if (!currentStroke.length) {
       return
     }
-    this.socket.emit('stroke', { stroke: currentStroke, guid: utils.guid() })
+    this.socket.emit('stroke', { stroke: currentStroke, guid: utils.guid(), options })
   }
 }
 
@@ -426,6 +461,9 @@ const utils = {
     if (!results) return null;
     if (!results[2]) return '';
     return decodeURIComponent(results[2].replace(/\+/g, " "));
+  },
+  randomHex: () => {
+    return "#000000".replace(/0/g,function(){return (~~(Math.random()*16)).toString(16);});
   }
 }
 

@@ -1,11 +1,14 @@
 import React from 'react'
 
-function IconButton({ icon, onClick, disabled = false, className = '' }) {
+function IconButton({ icon, onClick, disabled = false, className = '', children }) {
   const classes = 'icon-button' + (disabled ? ' disabled' : '') + ` ${className}`
   return (
-    <button className={classes} onClick={!disabled ? onClick : () => {}} disabled={disabled}>
-      <img src={`../../assets/${icon}`} />
-    </button>
+    <span className='icon-button-wrapper'>
+      <span className={classes} onClick={!disabled ? onClick : () => {}} disabled={disabled}>
+        <img src={`../../assets/${icon}`} />
+      </span>
+      {children}
+    </span>
   )
 }
 
