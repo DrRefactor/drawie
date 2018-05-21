@@ -1,9 +1,10 @@
 const { RoomService } = require('./services/room/room')
+const { dbName } = require('./environment')
 
 class Application {
   constructor(io, client) {
     this.io = io
-    this.db = client.db('drawie')
+    this.db = client.db(dbName)
 
     this.roomService = new RoomService(this.db)
 
