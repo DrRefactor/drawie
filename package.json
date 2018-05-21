@@ -13,6 +13,8 @@
   "dependencies": {
     "canvas": "^1.6.10",
     "express": "^4.16.3",
+    "mongodb": "^3.1.0-beta4",
+    "mongoose": "^5.1.1",
     "path": "^0.12.7",
     "socket.io": "^2.1.0"
   }

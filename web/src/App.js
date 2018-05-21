@@ -32,6 +32,10 @@ class App extends Component {
     this.handlePaletteClick = this.handlePaletteClick.bind(this)
     this.handleActivityDismiss = this.handleActivityDismiss.bind(this)
     this.onBrushColorSelect = this.onBrushColorSelect.bind(this)
+    this.handleClickAway = this.handleClickAway.bind(this)
+    this.onElementPaint = this.onElementPaint.bind(this)
+    this.handlePaintClick = this.handlePaintClick.bind(this)
+    this.relativeCoords = utils.getRelativeCoordinates.bind(utils)
 
     const options = {
       fillStyle: 'solid',
@@ -95,11 +99,15 @@ class App extends Component {
       const { stroke, options } = data
       this.drawStroke(stroke, options)
     })
+
+    document.addEventListener('mousedown', this.handleClickAway);
   }
 
   componentWillUnmount() {
     if (this.touchMoveListener)
       this.touchMoveListener.remove()
+
+    document.removeEventListener('mousedown', this.handleClickAway);
   }
 
   render () {
@@ -145,15 +153,26 @@ class App extends Component {
             null 
           }
         </IconButton>
+        <IconButton disabled={false} active={activity === 'paintElement'} icon='paint.svg' onClick={this.handlePaintClick} />
       </div>
     )
   }
 
   renderBody() {
-    const { loading } = this.state
+    const { loading, activity } = this.state
+
+    let roughDraftProps = {}
+    let canvasProps = {}
 
     if (loading) {
       return <LoadingIndicator />
+    }
+    if (activity === 'paintElement') {
+      roughDraftProps = {
+        ...roughDraftProps,
+        onClick: this.onElementPaint,
+        onTouchEnd: this.onElementPaint
+      }
     }
 
     return [
@@ -161,6 +180,7 @@ class App extends Component {
         key='board'
         className='board'
         ref={this.onCanvasReady}
+        {...canvasProps}
       />,
       <canvas
         key='roughdraft'
@@ -174,6 +194,7 @@ class App extends Component {
         onTouchEnd={this.onDraw}
         onTouchCancel={this.onDraw}
         ref={this.onRoughDraftReady}
+        {...roughDraftProps}
       />
     ]
   }
@@ -195,9 +216,23 @@ class App extends Component {
     this.setState({ activity })
   }
 
+  handlePaintClick() {
+    const activity = this.state.activity === 'paintElement' ? '' : 'paintElement'
+    this.setState({ activity })
+  }
+
+  handleClickAway() {
+    console.log('board clickaway')
+  }
+
   onBrushColorSelect(brushColor) {
     const options = Object.assign({}, this.state.options, { strokeStyle: brushColor })
     this.setState({ options, activity: '' })
+  }
+
+  onElementPaint(event) {
+    const { x, y } = this.relativeCoords(event)
+    this.socket.emit('paint', { x, y })
   }
 
   onRoughDraftReady(component) {
