@@ -41,7 +41,9 @@ class PickerTooltip extends React.Component {
       return
     }
     
-    this.onDismiss()
+    if (this.props.onClickAway) {
+      this.props.onClickAway(this.state.color)
+    }
   }
   onDismiss() {
     if (this.props.onDismiss) {

@@ -33,13 +33,15 @@ class App extends Component {
     this.handleActivityDismiss = this.handleActivityDismiss.bind(this)
     this.onBrushColorSelect = this.onBrushColorSelect.bind(this)
     this.handleClickAway = this.handleClickAway.bind(this)
-    this.onElementPaint = this.onElementPaint.bind(this)
+    this.onElementFill = this.onElementFill.bind(this)
     this.handlePaintClick = this.handlePaintClick.bind(this)
     this.relativeCoords = utils.getRelativeCoordinates.bind(utils)
+    this.onFillElementColorSelect = this.onFillElementColorSelect.bind(this)
 
+    const strokeStyle = utils.randomHex()
     const options = {
       fillStyle: 'solid',
-      strokeStyle: utils.randomHex(),
+      strokeStyle,
       lineWidth: 5,
       lineCap: 'round'
     }
@@ -57,7 +59,8 @@ class App extends Component {
       room,
       snapshots: [],
       activity: '',
-      options
+      options,
+      fillElementColor: strokeStyle
     }
     this.registeredCallbacks = {}
   }
@@ -135,7 +138,7 @@ class App extends Component {
   }
 
   renderToolbar() {
-    const { loading, snapshots, activity, options } = this.state
+    const { loading, snapshots, activity, options, fillElementColor } = this.state
 
     if (loading) {
       return null
@@ -149,11 +152,20 @@ class App extends Component {
         <IconButton disabled={false} icon='redo.svg' onClick={this.handleRedoClick} />
         <IconButton icon='palette.svg' onClick={this.handlePaletteClick}>
           { activity === 'selectBrushColor' ? 
-            <PickerTooltip onAccept={this.onBrushColorSelect} onDismiss={this.handleActivityDismiss} initialColor={options.strokeStyle} /> :
+            <PickerTooltip onAccept={this.onBrushColorSelect} onClickAway={this.onBrushColorSelect}
+              onDismiss={this.handleActivityDismiss} initialColor={options.strokeStyle} /> :
             null 
           }
         </IconButton>
-        <IconButton disabled={false} active={activity === 'paintElement'} icon='paint.svg' onClick={this.handlePaintClick} />
+        <IconButton disabled={false} active={activity === 'selectFillElementColor'} icon='paint.svg' onClick={this.handlePaintClick}>
+          { activity === 'selectFillElementColor' ? 
+            <PickerTooltip onAccept={this.onFillElementColorSelect}
+              onDismiss={this.handleActivityDismiss}
+              onClickAway={this.handleActivityDismiss}
+              initialColor={fillElementColor} /> :
+            null 
+          }
+        </IconButton>
       </div>
     )
   }
@@ -163,16 +175,18 @@ class App extends Component {
 
     let roughDraftProps = {}
     let canvasProps = {}
+    let roughDraftClasses = 'rough-draft'
 
     if (loading) {
       return <LoadingIndicator />
     }
-    if (activity === 'paintElement') {
+    if (activity === 'fillElement') {
       roughDraftProps = {
         ...roughDraftProps,
-        onClick: this.onElementPaint,
-        onTouchEnd: this.onElementPaint
+        onClick: this.onElementFill,
+        onTouchEnd: this.onElementFill
       }
+      roughDraftClasses = roughDraftClasses + ' in-fill-element'
     }
 
     return [
@@ -184,7 +198,7 @@ class App extends Component {
       />,
       <canvas
         key='roughdraft'
-        className='rough-draft'
+        className={roughDraftClasses}
         onMouseMove={this.onDraw}
         onMouseDown={this.onDraw}
         onMouseUp={this.onDraw}
@@ -217,7 +231,7 @@ class App extends Component {
   }
 
   handlePaintClick() {
-    const activity = this.state.activity === 'paintElement' ? '' : 'paintElement'
+    const activity = this.state.activity === 'selectFillElementColor' ? '' : 'selectFillElementColor'
     this.setState({ activity })
   }
 
@@ -230,9 +244,15 @@ class App extends Component {
     this.setState({ options, activity: '' })
   }
 
-  onElementPaint(event) {
+  onFillElementColorSelect(color) {
+    this.setState({ fillElementColor: color, activity: 'fillElement' })
+  }
+
+  onElementFill(event) {
     const { x, y } = this.relativeCoords(event)
-    this.socket.emit('paint', { x, y })
+    const { fillElementColor } = this.state
+    this.socket.emit('floodFill', { x, y, color: fillElementColor })
+    this.setState({ activity: '' })
   }
 
   onRoughDraftReady(component) {
@@ -350,7 +370,7 @@ class App extends Component {
       this.setup(ctx, this.state.options)
       ctx.beginPath()
       ctx.moveTo(x, y)
-      this.setState({ drawing: true, currentStroke: [] })
+      this.setState({ drawing: true, currentStroke: [[x, y]] })
     }
     else if (type === 'drag' || type === 'mousemove' || type === 'touchmove') {
       if (!drawing) {

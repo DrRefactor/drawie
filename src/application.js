@@ -55,6 +55,18 @@ class Application {
               }
             })
         })
+
+        socket.on('floodFill', data => {
+          const start = Date.now()
+          const { color, x, y } = data
+          this.roomService.floodFill({ roomId, color, x, y })
+            .then(snapshot => {
+              io.to(roomId).emit('dumpBC', { snapshot })
+              console.log(`INFO -- Flood filling finished in ${Date.now() - start} ms`)
+            })
+        })
+
+
       })
   }
 }

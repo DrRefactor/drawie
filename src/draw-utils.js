@@ -67,4 +67,106 @@ function fullDump(ctx, element, plain = false) {
   return { data: imageData.data, width: imageData.width, height: imageData.height }
 }
 
-module.exports = { drawStroke, fullDump, toSnapshot, replace, setup };
+function fill({ x, y, element, ctx, color }) {
+  const data = ctx.getImageData(0, 0, element.width, element.height).data
+  const canvasWidth = element.width
+  const canvasHeight = element.height
+  const getPixelColor = (x, y) => {
+    const [ri, gi, bi] = getColorIndicesForCoord(x, y, canvasWidth)
+    
+    const r = data[ri]
+    const g = data[gi]
+    const b = data[bi]
+
+    return rgbToHex(r, g, b)
+  }
+
+  ctx.fillStyle = color
+  const fillRect = (x, y) => {
+    ctx.fillRect( x, y, 1, 1 )
+  }
+  
+  // function fillBfs({ x, y }) {
+  //   visited[x + ',' + y] = true
+  //   fillRect(x, y, color)
+  //   const neighbours = getNeigboursCoords(x, y, canvasWidth, canvasHeight)
+  //     .filter(isNotVisited)
+  //     .filter(hasSameColor)
+  //     .forEach(indices => {
+  //       const [x, y] = indices
+  //       fillBfs({ x, y })
+  //     })
+  // }
+
+  /// Same as above, not exceeding call-stack limit though
+  /// BFS in flat-recursive manner
+  function fillBfs({ x, y }) {
+    let visited = {}
+    visited[x + ',' + y] = true
+    let openStates = [[x, y]]
+    const targetColor = getPixelColor(x, y)
+    const isNotVisited = indices => !visited[indices[0] + ',' + indices[1]]
+    const hasSameColor = indices => getPixelColor(indices[0], indices[1]) === targetColor
+    
+    while (openStates.length) {
+      const [x, y] = openStates.shift()
+      fillRect(x, y)
+      
+      const neighbours = getNeigboursCoords(x, y, canvasWidth, canvasHeight)
+        .filter(isNotVisited)
+        .filter(hasSameColor)
+        
+      // neighbours.forEach(indices => visited[indices[0] + ',' + indices[1]] = true)
+      // again, performance
+      const neighboursLength = neighbours.length
+      for (let i = 0; i < neighboursLength; i++) {
+        const indices = neighbours[i]
+        visited[indices[0] + ',' + indices[1]] = true
+      }
+
+      openStates = openStates.concat(neighbours)
+    }
+  }
+
+  fillBfs({ x, y })
+}
+
+function getNeigboursCoords(x, y, width, height) {
+  let neighbours = []
+  if (x > 0) {
+    neighbours.push([x - 1, y])
+    if (y > 0) {
+      neighbours.push([x - 1, y - 1])
+    }
+    if (y < height - 1) {
+      neighbours.push([x - 1, y + 1])
+    }
+  }
+  if (y > 0) {
+    neighbours.push([x, y - 1])
+  }
+  if (x < width - 1) {
+    neighbours.push([x + 1, y])
+    if (y > 0) {
+      neighbours.push([x + 1, y - 1])
+    }
+    if (y < height - 1) {
+      neighbours.push([x + 1, y + 1])
+    }
+  }
+  if (y < height - 1) {
+    neighbours.push([x, y + 1])
+  }
+  return neighbours
+}
+
+function getColorIndicesForCoord(x, y, width) {
+  const red = y * (width * 4) + x * 4
+  return [red, red + 1, red + 2, red + 3]
+}
+
+function rgbToHex(r, g, b) {
+  return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)
+}
+
+module.exports = { drawStroke, fullDump, toSnapshot, replace, setup, fill };

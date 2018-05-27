@@ -1,6 +1,6 @@
 const NodeCanvas = require('canvas')
 const Image = NodeCanvas.Image
-const { drawStroke, toSnapshot, replace, setup } = require('../../draw-utils')
+const { drawStroke, toSnapshot, replace, setup, fill } = require('../../draw-utils')
 
 const { RoomRepository } = require('./room-repository')
 const { RoomEntity } = require('./room-entity')
@@ -92,6 +92,26 @@ class RoomService {
       })
   }
 
+  floodFill({ roomId, color, x, y }) {
+    return this.repository
+      .findById(roomId)
+      .then(entity => {
+        return this.entity2Element(entity)
+      })
+      .then(data => {
+        const { ctx, element, snapshot, entity } = data
+        fill({ x, y, element, ctx, color })
+        return { ctx, element, entity }
+      })
+      .then(data => {
+        const { ctx, element, entity } = data
+        const snapshot = toSnapshot(element)
+        const toSave = this.merge(entity, snapshot)
+        this.repository.save(toSave)
+        return snapshot
+      })
+  }
+
   fitBounds(entity, snapshots) {
     snapshots = snapshots.slice()
     const toDeleteCount = snapshots.length - entity.historyBound
@@ -102,8 +122,26 @@ class RoomService {
     return snapshots
   }
 
+  merge(entity, newSnapshot) {
+    let snapshots = entity.snapshots.concat(newSnapshot)
+    snapshots = this.fitBounds(entity, snapshots)
+    const redoStack = []
+    return { ...entity, ...{ snapshots, redoStack } }
+  }
+
   recentSnapshot(entity) {
     return entity.snapshots[entity.snapshots.length - 1]
+  }
+
+  entity2Element(entity) {
+    const element = new NodeCanvas(entity.width, entity.height)
+    const ctx = element.getContext('2d')
+    const snapshot = this.recentSnapshot(entity)
+
+    return replace({ ctx, snapshot })
+      .then(() => {
+        return { ctx, element, snapshot, entity }
+      })
   }
 
   getDump(roomId) {
