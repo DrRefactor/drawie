@@ -101,15 +101,23 @@ function fill({ x, y, element, ctx, color }) {
   /// Same as above, not exceeding call-stack limit though
   /// BFS in flat-recursive manner
   function fillBfs({ x, y }) {
-    let visited = {}
-    visited[x + ',' + y] = true
-    let openStates = [[x, y]]
+    let visited = new Array(canvasHeight * canvasWidth)
+    let openStates = new Array(canvasHeight * canvasWidth)
+
+    openStates[0] = [x, y]
+    let startCursor = 0
+
+    // past-end concept - first free slot
+    let endCursor = 1
+
     const targetColor = getPixelColor(x, y)
-    const isNotVisited = indices => !visited[indices[0] + ',' + indices[1]]
+    const isNotVisited = indices => !visited[indices[0] + canvasWidth * indices[1]]
     const hasSameColor = indices => getPixelColor(indices[0], indices[1]) === targetColor
-    
-    while (openStates.length) {
-      const [x, y] = openStates.shift()
+    const markVisited = indices => visited[indices[0] + canvasWidth * indices[1]] = true
+    markVisited([x, y])
+
+    while (startCursor < endCursor) {
+      const [x, y] = openStates[startCursor]
       fillRect(x, y)
       
       const neighbours = getNeigboursCoords(x, y, canvasWidth, canvasHeight)
@@ -120,11 +128,12 @@ function fill({ x, y, element, ctx, color }) {
       // again, performance
       const neighboursLength = neighbours.length
       for (let i = 0; i < neighboursLength; i++) {
-        const indices = neighbours[i]
-        visited[indices[0] + ',' + indices[1]] = true
+        markVisited(neighbours[i])
+        openStates[endCursor + i] = neighbours[i]
       }
 
-      openStates = openStates.concat(neighbours)
+      endCursor += neighboursLength
+      ++startCursor
     }
   }
 

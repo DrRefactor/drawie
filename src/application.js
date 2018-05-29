@@ -65,8 +65,6 @@ class Application {
               console.log(`INFO -- Flood filling finished in ${Date.now() - start} ms`)
             })
         })
-
-
       })
   }
 }
