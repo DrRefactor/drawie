@@ -37,6 +37,8 @@ class App extends Component {
     this.handlePaintClick = this.handlePaintClick.bind(this)
     this.relativeCoords = utils.getRelativeCoordinates.bind(utils)
     this.onFillElementColorSelect = this.onFillElementColorSelect.bind(this)
+    this.onMiddlewareReady = this.onMiddlewareReady.bind(this)
+    this.emitStrokeToMiddleware = this.emitStrokeToMiddleware.bind(this)
 
     const strokeStyle = utils.randomHex()
     const options = {
@@ -111,6 +113,10 @@ class App extends Component {
       this.touchMoveListener.remove()
 
     document.removeEventListener('mousedown', this.handleClickAway);
+
+    if (this.middlewareTimeout) {
+      clearTimeout(this.middlewareTimeout)
+    }
   }
 
   render () {
@@ -197,6 +203,11 @@ class App extends Component {
         {...canvasProps}
       />,
       <canvas
+        key='middleware'
+        className='middleware'
+        ref={this.onMiddlewareReady}
+      />,
+      <canvas
         key='roughdraft'
         className={roughDraftClasses}
         onMouseMove={this.onDraw}
@@ -268,6 +279,16 @@ class App extends Component {
       this.onDraw.bind(this),
       { passive: false }
     )
+  }
+
+  onMiddlewareReady(component) {
+    this.middlewareRef = component
+
+    component.height = 500
+    component.width = 500
+
+    let ctx = component.getContext('2d')
+    this.setup(ctx, this.state.options)
   }
 
   setup(ctx, options = {}) {
@@ -405,7 +426,7 @@ class App extends Component {
     ctx.stroke();
   }
 
-  drawStroke(points = [], options) {
+  drawStroke(points = [], options, context) {
     if (!points.length) {
       return
     }
@@ -414,7 +435,7 @@ class App extends Component {
     const [firstX, firstY] = points[0]
     let current = { x: firstX, y: firstY }
     
-    const ctx = this.canvasRef.getContext('2d')
+    const ctx = context || this.canvasRef.getContext('2d')
     this.setup(ctx, options)
     ctx.beginPath()
     ctx.moveTo(firstX, firstY)
@@ -431,11 +452,26 @@ class App extends Component {
     ctx.closePath()
   }
 
+  emitStrokeToMiddleware(stroke = []) {
+    if (!this.middlewareRef || !stroke.length) {
+      return
+    }
+    const ctx = this.middlewareRef.getContext('2d')
+    this.drawStroke(stroke, this.state.options, ctx)
+
+    if (this.middlewareTimeout) {
+      clearTimeout(this.middlewareTimeout)
+    }
+    this.middlewareTimeout = setTimeout(() => ctx.clearRect(0, 0, this.middlewareRef.width, this.middlewareRef.height), 3000)
+  }
+
   emitStroke() {
     const { currentStroke = [], options } = this.state
     if (!currentStroke.length) {
       return
     }
+    this.emitStrokeToMiddleware(currentStroke)
+    
     this.socket.emit('stroke', { stroke: currentStroke, guid: utils.guid(), options })
   }
 }
