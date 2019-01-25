@@ -19,7 +19,7 @@ export class RoomList extends React.Component {
           <div>
             <a href={`/?room=${room.id}`} >
               {/* {room.id} */}
-              <img src={room.snapshot} height='150' width='150'></img>
+              <img src={room.snapshot} height='450' width='450'></img>
             </a>
           </div>
         </div>
