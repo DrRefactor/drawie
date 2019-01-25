@@ -16,10 +16,12 @@ export class RoomList extends React.Component {
     const { rooms } = this.state
     return rooms.map(room => (
         <div key={room.id} style={{ background: 'white', border: '1px dashed black' }}>
-          <a href={`/?room=${room.id}`} >
-            {/* {room.id} */}
-            <img src={room.snapshot} height='150' width='150'></img>
-          </a>
+          <div>
+            <a href={`/?room=${room.id}`} >
+              {/* {room.id} */}
+              <img src={room.snapshot} height='150' width='150'></img>
+            </a>
+          </div>
         </div>
       )
     )
