@@ -7,6 +7,7 @@ import { IconButton } from './components/icon-button';
 
 import { SliderPicker } from 'react-color'
 import { PickerTooltip } from './components/picker-tooltip';
+import { RoomList } from './components/room-list';
 
 // move this to {env}.env
 let host = 'http://localhost:5000'
@@ -39,6 +40,8 @@ class App extends Component {
     this.onFillElementColorSelect = this.onFillElementColorSelect.bind(this)
     this.onMiddlewareReady = this.onMiddlewareReady.bind(this)
     this.emitStrokeToMiddleware = this.emitStrokeToMiddleware.bind(this)
+    this.queryAdmin = this.queryAdmin.bind(this)
+    this.getNonEmptyRooms = this.getNonEmptyRooms.bind(this)
 
     const strokeStyle = utils.randomHex()
     const options = {
@@ -69,6 +72,10 @@ class App extends Component {
 
   queryRoom() {
     return utils.getUrlByName('room', this.props.location.search)
+  }
+
+  queryAdmin() {
+    return utils.getUrlByName('admin', this.props.location.search)
   }
 
   buildQuery(room) {
@@ -121,6 +128,15 @@ class App extends Component {
 
   render () {
     const { room } = this.state
+    
+    if (this.queryAdmin()) {
+      return (
+        <div className='app-container'>
+          <RoomList getRooms={this.getNonEmptyRooms} />
+        </div>
+      )
+    }
+    
     // Redirect to new room from '/'
     if (this.queryRoom() !== room) {
       return <Redirect to={{
@@ -222,6 +238,16 @@ class App extends Component {
         {...roughDraftProps}
       />
     ]
+  }
+
+  getNonEmptyRooms() {
+    return new Promise(resolve => {
+      this.socket.emit('getNonEmpty')
+      this.socket.on('getNonEmptyBC', data => {
+        const { rooms = [] } = data
+        resolve(rooms)
+      })
+    })
   }
 
   handleActivityDismiss() {

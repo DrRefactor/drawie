@@ -21,6 +21,12 @@ class RoomService {
       .findById(roomId)
   }
 
+  getAllNonEmpty() {
+    return this.repository
+      .findAllNonEmpty()
+      .then(rooms => rooms.map(r => ({ id: r.id, snapshot: r.snapshots[r.snapshots.length - 1] })))
+  }
+
   createIfNotExists(roomId) {
     return this.getOne(roomId)
       .then(entity => {

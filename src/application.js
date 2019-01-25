@@ -65,6 +65,18 @@ class Application {
               console.log(`INFO -- Flood filling finished in ${Date.now() - start} ms`)
             })
         })
+
+        socket.on('getNonEmpty', () => {
+          this.roomService
+            .getAllNonEmpty()
+            .then(rooms => {
+              io.to(roomId).emit('getNonEmptyBC', { rooms })
+              console.log(`INFO -- returning non empty rooms ${rooms}`)
+            })
+            .catch(e => {
+              console.log("Empty rooms fetch error", e)
+            })
+        })
       })
   }
 }

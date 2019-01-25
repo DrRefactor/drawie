@@ -6,6 +6,23 @@ class RoomRepository extends IRepository {
     this.db = db
   }
 
+  findAllNonEmpty() {
+    const collection = this.db.collection('rooms')
+
+    const transaction = onComplete => collection.find(
+      {
+        // snapshots: {
+        //   $size: {
+        //     $gt: 1
+        //   }
+        // }
+        $where: 'this.snapshots.length > 1'
+      })
+      .toArray(onComplete)
+
+    return this.execute(transaction)
+  }
+
   findById(id, cachedEntry) {
     // if (cachedEntry) {
     //   return Promise.resolve(cachedEntry)
