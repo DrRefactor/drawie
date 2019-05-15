@@ -16,3 +16,9 @@ npm run dev
 
 runs on localhost:8080
 ```
+
+## demo
+visit
+```
+http://drawie.herokuapp.com
+```
